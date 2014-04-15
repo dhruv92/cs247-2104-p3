@@ -5,6 +5,8 @@
 
   var cur_video_blob = null;
   var fb_instance;
+  var divCounter = 1;
+ 
 
   $(document).ready(function(){
     connect_to_chat_firebase();
@@ -13,7 +15,8 @@
 
   function connect_to_chat_firebase(){
     /* Include your Firebase link here!*/
-    fb_instance = new Firebase("https://gsroth-p3-v1.firebaseio.com");
+    //fb_instance = new Firebase("https://gsroth-p3-v1.firebaseio.com");
+    fb_instance = new Firebase("https://sizzling-fire-8982.firebaseio.com");
 
     // generate new chatroom id or use existing id
     var url_segments = document.location.href.split("/#");
@@ -22,7 +25,7 @@
     }else{
       fb_chat_room_id = Math.random().toString(36).substring(7);
     }
-    display_msg({m:"Share this url with your friend to join this chat: "+ document.location.origin+"/#"+fb_chat_room_id,c:"red"})
+    display_msg({m:"Share this url with your friend to join this sentiment chat: "+ document.location.origin+"/#"+fb_chat_room_id,c:"red"})
 
     // set up variables to access firebase data structure
     var fb_new_chat_room = fb_instance.child('chatrooms').child(fb_chat_room_id);
@@ -39,7 +42,7 @@
     });
 
     // block until username is answered
-    var username = window.prompt("Welcome, warrior! please declare your name?");
+    var username = window.prompt("Welcome, feeler! please declare your name?");
     if(!username){
       username = "anonymous"+Math.floor(Math.random()*1111);
     }
@@ -49,41 +52,75 @@
     // bind submission box
     $("#submission input").keydown(function( event ) {
       if (event.which == 13) {
-        if(has_emotions($(this).val())){
-          fb_instance_stream.push({m:username+": " +$(this).val(), v:cur_video_blob, c: my_color});
-        }else{
-          fb_instance_stream.push({m:username+": " +$(this).val(), c: my_color});
-        }
+        
+       
+
+        fb_instance_stream.push({m:username+": " +$(this).val(), v:cur_video_blob, c: my_color});
+        
         $(this).val("");
+        scroll_to_bottom(0);
       }
     });
+
+    // scroll to bottom in case there is already content
+    scroll_to_bottom(1300);
   }
 
   // creates a message node and appends it to the conversation
   function display_msg(data){
+    divCounter += 1;
+    get_sentiment(data.m, 'vidNum' + divCounter);
     $("#conversation").append("<div class='msg' style='color:"+data.c+"'>"+data.m+"</div>");
     if(data.v){
       // for video element
       var video = document.createElement("video");
+      var containerDiv = document.createElement("div");
+      containerDiv.id = 'vidNum' + divCounter;
       video.autoplay = true;
       video.controls = false; // optional
       video.loop = true;
       video.width = 120;
+      video.style.zIndex = "-1";
+      
+      
 
       var source = document.createElement("source");
       source.src =  URL.createObjectURL(base64_to_blob(data.v));
       source.type =  "video/webm";
 
       video.appendChild(source);
+      containerDiv.appendChild(video);
 
       // for gif instead, use this code below and change mediaRecorder.mimeType in onMediaSuccess below
       // var video = document.createElement("img");
       // video.src = URL.createObjectURL(base64_to_blob(data.v));
 
-      document.getElementById("conversation").appendChild(video);
+      document.getElementById("conversation").appendChild(containerDiv);
     }
-    // Scroll to the bottom every time we display a new message
-    scroll_to_bottom(0);
+  }
+
+
+  //asynchronously fetch the sentiment and report it to console
+  function get_sentiment(msg, divId) {
+      $.get("/sentimentScore" + "?msg=" + encodeURI(msg) + "&divId=" + divId,  shadeVideo);
+      console.log("did the get request");
+  }
+
+  //this function uses score to shade the div
+  function shadeVideo(result) {
+    var score = result.score;
+    var divId = result.divId;
+    console.log('The video sentiment score: ' + score);
+    console.log('The div id for this video: ' + result.divId);
+    var weightedScore = score / 10;
+    console.log('the weighted score ' + weightedScore);
+    var div = document.getElementById(divId);
+    if (score > 0) {
+      div.setAttribute("style", "background-color: yellow; z-index: 100; opacity: " + weightedScore);
+    } else if (score < 0) {
+      div.setAttribute("style", "background-color: red; z-index: 100; opacity: " + -1*weightedScore);
+
+    }
   }
 
   function scroll_to_bottom(wait_time){
